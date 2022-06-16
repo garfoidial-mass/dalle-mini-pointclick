@@ -10,6 +10,14 @@
 
 #include <stdbool.h>
 
+#define SCREEN_WIDTH 512
+#define SCREEN_HEIGHT 512
+
+extern int x;
+extern int y;
+
+extern bool shouldrun;
+
 typedef struct room_t Room;
 typedef struct transbox_t TransitionBox;
 

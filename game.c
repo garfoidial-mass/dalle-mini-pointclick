@@ -1,8 +1,13 @@
 #include "game.h"
 
+bool shouldrun = true;
+
 Room* current_room = NULL;
 
 Room* rooms = NULL;
+
+int x = 0;
+int y = 0;
 
 void must_init(bool test, const char *description)
 {

@@ -10,19 +10,11 @@
 #define KEY_SEEN 1
 #define KEY_RELEASED 2
 
-#define SCREEN_WIDTH 512
-#define SCREEN_HEIGHT 512
-
 unsigned char key[ALLEGRO_KEY_MAX];
-
-int x = 0;
-int y = 0;
 
 int main(int argc, char** argv)
 {
     memset(key,0,sizeof(key));
-
-    bool shouldrun = true;
 
     //begin init allegro systems
 
@@ -263,6 +255,8 @@ int main(int argc, char** argv)
     al_destroy_display(disp);
     al_destroy_timer(timer);
     al_destroy_event_queue(queue);
+
+    al_shutdown_image_addon();
 
     return 0;
 }

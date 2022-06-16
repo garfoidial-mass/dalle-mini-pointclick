@@ -7,10 +7,14 @@ setroom <room name>, setimage <path from /images>, setaudio <path from /audio>, 
 deltransition <transition name>, help <command name>*/
 
 #include <stdio.h>
-#include "../game.h"
+#include "game.h"
 
-typedef bool(*CmdFuncPtr)(char*);
-#define cmdfunc(name) bool name(char* arg)
+typedef bool(*CmdFuncPtr)(int argcount,char** args);
+#define cmdfunc(name) bool name(int argcount,char** args)
+
+enum EDITOR_MODE {MODE_VIEWING, MODE_ED_TRANSITION};
+
+extern enum EDITOR_MODE editor_mode;
 
 typedef struct command_t{
     char* command;
@@ -24,6 +28,8 @@ extern Command* commands;
 
 void create_command_hash();
 
+void parse_input(char* input);
+
 cmdfunc(listrooms);
 cmdfunc(listtransitions);
 cmdfunc(listcmds);
@@ -36,5 +42,6 @@ cmdfunc(setaudio);
 cmdfunc(delroom);
 cmdfunc(deltransition);
 cmdfunc(help);
+cmdfunc(quit);
 
 #endif
