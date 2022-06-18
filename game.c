@@ -14,7 +14,7 @@ void must_init(bool test, const char *description)
     if (test) return;
 
     exit(1);
-}
+} 
 
 Room* create_room(const char* name, const char* imagepath, const char* musicpath)
 {

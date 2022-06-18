@@ -7,7 +7,16 @@ setroom <room name>, setimage <path from /images>, setaudio <path from /audio>, 
 deltransition <transition name>, help <command name>*/
 
 #include <stdio.h>
+#include <pthread.h>
 #include "game.h"
+
+extern pthread_mutex_t running_lock;
+extern pthread_mutex_t rooms_lock;
+extern pthread_mutex_t current_room_lock;
+extern pthread_mutex_t current_transition_lock;
+
+extern uint8_t points_set;
+extern TransitionBox* current_transition;
 
 typedef bool(*CmdFuncPtr)(int argcount,char** args);
 #define cmdfunc(name) bool name(int argcount,char** args)
@@ -36,6 +45,7 @@ cmdfunc(listcmds);
 cmdfunc(newroom);
 cmdfunc(newtransition);
 cmdfunc(setroom);
+cmdfunc(getroom);
 cmdfunc(setname);
 cmdfunc(setimage);
 cmdfunc(setaudio);

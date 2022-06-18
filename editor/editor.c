@@ -1,5 +1,12 @@
 #include "editor.h"
-///BRUH,,,ARGS AINT NULL, BUT IT ENDS UP NULL!!!!!
+
+pthread_mutex_t running_lock;
+pthread_mutex_t rooms_lock;
+pthread_mutex_t current_room_lock;
+pthread_mutex_t current_transition_lock;
+
+TransitionBox* current_transition;
+
 Command cmdarr[] = {
     {"listrooms","listrooms","lists existing rooms",&listrooms},
     {"listtransitions","listtransitions","lists transitions in current room",&listtransitions},
@@ -7,6 +14,7 @@ Command cmdarr[] = {
     {"newroom","newroom <room name> <image path> <audio path>","creates a room with the name <room name>, image at <image path>, and audio file at <audio path>",&newroom},
     {"newtransition","newtransition <transition name> <room name>","creates a transition with the name <transition name> which transitions to the room with the name <room name> in the currently edited room",&newtransition},
     {"setroom","setroom <room name>","starts editing the room with name <room name>",&setroom},
+    {"getroom","getroom <room name>","displays the name of the currently edited room",&getroom},
     {"setname","setname <room name>","changes the currently edited room's name to <room name>",&setname},
     {"setimage","setimage <image path>","sets the room's image to the image at <image path>. <image path> is relative to the game executable's folder, not the editor folder",&setimage},
     {"setaudio","setaudio <audio path>","sets the room's audio track to the audio file at <audio path>",&setaudio},
@@ -15,6 +23,8 @@ Command cmdarr[] = {
     {"help","help <command name>","displays info about command <command name>",&help},
     {"quit","quit","quits the program",&quit}
 };
+
+uint8_t points_set; // for checking which points have been set in a transition (should never be greater than 2)
 
 Command* commands = NULL;
 
@@ -45,11 +55,6 @@ void parse_input(char* input)
         args[argcount-1] = strtok(NULL,delim);
     }
     argcount-=1;
-    printf("%i\n",argcount);
-    for(int i = 0; i < argcount; i++)
-    {
-        printf("%s\n",args[i]);
-    }
     Command* cmd = NULL;
     HASH_FIND_STR(commands,args[0],cmd);
     if(cmd == NULL)
@@ -64,24 +69,28 @@ void parse_input(char* input)
     }
 
     free(args);
+    return;
 }
 
 cmdfunc(listrooms)
 {
+    pthread_mutex_lock(&rooms_lock);
     for(Room* room = rooms; room != NULL; room = room->hh.next)
     {
         printf(room->name);
     }
+    pthread_mutex_unlock(&rooms_lock);
     return true;
 }
 
 cmdfunc(listtransitions)
 {
+    pthread_mutex_lock(&current_room_lock);
     for(TransitionBox* transition = current_room->transitions; transition != NULL; transition = transition->hh.next)
     {
         printf(transition->name);
     }
-
+    pthread_mutex_unlock(&current_room_lock);
     return true;
 }
 
@@ -111,8 +120,10 @@ cmdfunc(newroom)
             return false;
         break;
     }
+    pthread_mutex_lock(&rooms_lock);
     Room* room = create_room(roomname,imagepath,audiopath);
     room->editor_room = malloc(sizeof(Ed_room));
+    pthread_mutex_unlock(&rooms_lock);
     return true;
 }
 cmdfunc(newtransition)
@@ -122,14 +133,18 @@ cmdfunc(newtransition)
         return false;
     }
     Room* room;
+    pthread_mutex_lock(&rooms_lock);
     HASH_FIND_STR(rooms,args[2],room);
     if(room != NULL)
     {
         TransitionBox* box = create_transition(args[1],0,0,0,0,NULL,room);
         add_transition(box,current_room);
+        current_transition = box;
         editor_mode = MODE_ED_TRANSITION;
+        pthread_mutex_unlock(&rooms_lock);
         return true;
     }
+    pthread_mutex_unlock(&rooms_lock);
     return false;
 }
 cmdfunc(setroom)
@@ -139,26 +154,27 @@ cmdfunc(setroom)
         return false;
     }
     Room* room = NULL;
-    for(Room *roomi = rooms; roomi != NULL; roomi = roomi->hh.next)
-    {
-        printf("%s\n",roomi->name);
-    }
+    pthread_mutex_lock(&rooms_lock);
     HASH_FIND_STR(rooms,args[1], room);
     if(room != NULL)
     {
         current_room = room;
+        pthread_mutex_unlock(&rooms_lock);
         return true;
     }
-    printf("could not find room\n");
+    pthread_mutex_unlock(&rooms_lock);
     return false;
 }
 cmdfunc(getroom)
 {
+    pthread_mutex_lock(&current_room_lock);
     if(current_room != NULL)
     {
         printf("%s\n",current_room->name);
+        pthread_mutex_unlock(&current_room_lock);
         return true;
     }
+    pthread_mutex_unlock(&current_room_lock);
     return false;
 }
 cmdfunc(setname)
@@ -167,9 +183,11 @@ cmdfunc(setname)
     {
         return false;
     }
+    pthread_mutex_lock(&rooms_lock);
     HASH_DEL(rooms,current_room);
     current_room->name = args[1];
     HASH_ADD_STR(rooms,name,current_room);
+    pthread_mutex_unlock(&rooms_lock);
     return true;
 }
 cmdfunc(setimage)
@@ -179,13 +197,16 @@ cmdfunc(setimage)
         return false;
     }
     ALLEGRO_BITMAP* tmpimg = al_load_bitmap(args[1]);
+    pthread_mutex_lock(&current_room_lock);
     if(tmpimg != NULL)
     {
         al_destroy_bitmap(current_room->image);
         current_room->image = tmpimg;
         current_room->editor_room->imagepath = args[1];
+        pthread_mutex_unlock(&current_room_lock);
         return true;
     }
+    pthread_mutex_unlock(&current_room_lock);
     al_destroy_bitmap(tmpimg);
     return false;
 }
@@ -198,11 +219,13 @@ cmdfunc(setaudio)
     ALLEGRO_AUDIO_STREAM* audio = al_load_audio_stream(args[1],2,2048);
     if(audio != NULL)
     {
+        pthread_mutex_lock(&current_room_lock);
         al_destroy_audio_stream(current_room->music);
         current_room->music = audio;
         current_room->editor_room->audiopath = args[1];
         al_set_audio_stream_playmode(current_room->music, ALLEGRO_PLAYMODE_LOOP);
         al_attach_audio_stream_to_mixer(current_room->music,al_get_default_mixer());
+        pthread_mutex_unlock(&current_room_lock);
         return true;
     }
     al_destroy_audio_stream(audio);
@@ -215,12 +238,15 @@ cmdfunc(delroom)
         return false;
     }
     Room* room = NULL;
+    pthread_mutex_lock(&rooms_lock);
     HASH_FIND_STR(rooms,args[1],room);
     if(room != NULL)
     {
         destroy_room(room);
+        pthread_mutex_unlock(&rooms_lock);
         return true;
     }
+    pthread_mutex_unlock(&rooms_lock);
 
     return false;
 }
@@ -231,11 +257,16 @@ cmdfunc(deltransition)
         return false;
     }
     TransitionBox* transition = NULL;
+    pthread_mutex_lock(&current_room_lock);
     HASH_FIND_STR(current_room->transitions,args[1],transition);
     if(transition != NULL)
     {
         destroy_transition(current_room,transition);
+        pthread_mutex_unlock(&current_room_lock);
+        return true;
     }
+    pthread_mutex_unlock(&current_room_lock);
+    return false;
 }
 cmdfunc(help)
 {
@@ -256,6 +287,8 @@ cmdfunc(help)
 
 cmdfunc(quit)
 {
+    pthread_mutex_lock(&running_lock);
     shouldrun = false;
+    pthread_mutex_unlock(&running_lock);
     return true;
 }

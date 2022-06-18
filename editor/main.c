@@ -1,8 +1,59 @@
 #include <allegro5/allegro_primitives.h>
 #include "editor.h"
 
+pthread_t console_thread;
+
+void* console(void* args)
+{
+    char line[100];
+
+    printf("type \"listcmds\" to get a list of commands\n then type \"help <command name>\" to get information about that command\n");
+
+    while (1)
+    {
+        pthread_mutex_lock(&running_lock);
+        if(shouldrun)
+        {
+            pthread_mutex_unlock(&running_lock);
+            break;
+        }
+        pthread_mutex_unlock(&running_lock);
+        //pthread_mutex_unlock(&running_lock);
+        fgets(line,100,stdin);
+        line[strcspn(line,"\n")] = '\0';
+        parse_input(line);   
+    }
+    return NULL;
+}
+
 int main(int argc, char** argv)
 {
+    //init mutexes
+
+    if(pthread_mutex_init(&running_lock,NULL)!= 0)
+    {
+        printf("failed to create running_lock\n");
+        return 1;
+    }
+
+    if(pthread_mutex_init(&rooms_lock,NULL)!= 0)
+    {
+        printf("failed to create running_lock\n");
+        return 1;
+    }
+
+    if(pthread_mutex_init(&current_room_lock,NULL)!= 0)
+    {
+        printf("failed to create current_room_lock\n");
+        return 1;
+    }
+
+    if(pthread_mutex_init(&current_transition_lock,NULL)!= 0)
+    {
+        printf("failed to create current_transition_lock\n");
+        return 1;
+    }
+
     //begin init allegro systems
 
     must_init(al_init(),"allegro");
@@ -66,11 +117,24 @@ int main(int argc, char** argv)
     al_start_timer(timer);
 
     create_command_hash();
-    
-    printf("type \"listcmds\" to get a list of commands\n then type \"help <command name>\" to get information about that command\n");
-    char line[100];
-    while(shouldrun)
+
+    int thread_err;
+    if((thread_err = pthread_create(&console_thread,NULL,&console,NULL)) != 0)
     {
+        printf("error creating thread: %s\n",strerror(thread_err));
+        return 1;
+    }
+    
+    while(1)
+    {
+        pthread_mutex_lock(&running_lock);
+        if(!shouldrun)
+        {
+            pthread_mutex_unlock(&running_lock);
+            break;
+        }
+        pthread_mutex_unlock(&running_lock);
+        
         al_wait_for_event(queue,&event);
 
         switch (event.type)
@@ -80,26 +144,64 @@ int main(int argc, char** argv)
             break;
         
         case ALLEGRO_EVENT_DISPLAY_CLOSE:
+            pthread_mutex_lock(&running_lock);
             shouldrun = false;
+            pthread_mutex_unlock(&running_lock);
             break;
         }
 
         switch (editor_mode)
         {
         case MODE_VIEWING:
-            fgets(line,100,stdin);
-            line[strcspn(line,"\n")] = '\0';
-            parse_input(line);
             break;
         case MODE_ED_TRANSITION:
-            editor_mode = MODE_VIEWING;
+            pthread_mutex_lock(&current_transition_lock);
+            switch (event.type)
+            {
+            case ALLEGRO_EVENT_MOUSE_BUTTON_DOWN:
+                if (event.mouse.button & 0b01)
+                {
+                    switch(points_set)
+                    {
+                        case 0:
+                            current_transition->x1 = event.mouse.x;
+                            current_transition->y1 = event.mouse.y;
+                            points_set++;
+                        break;
+                        case 1:
+                            current_transition->x2 = event.mouse.x;
+                            current_transition->y2 = event.mouse.y;
+                            points_set++;
+                        break;
+                        case 2:
+                            editor_mode = MODE_VIEWING;
+                        break;
+                    }
+                }
+                else if (event.mouse.button & 0b10)
+                {
+                    switch(points_set)
+                    {
+                        case 1:
+                            points_set--;
+                        break;
+                        case 2:
+                            points_set--;
+                        break;
+                    }
+                }
             break;
+            }
+            pthread_mutex_unlock(&current_transition_lock);
         }
 
         if(redraw && al_is_event_queue_empty(queue))
         {
             
             al_clear_to_color(al_map_rgb(0,0,0));
+
+            pthread_mutex_lock(&current_room_lock);
+            
             if(current_room != NULL)
             {
                 if(current_room->image != NULL)
@@ -107,6 +209,8 @@ int main(int argc, char** argv)
                     al_draw_bitmap(current_room->image,(SCREEN_WIDTH/2)-(al_get_bitmap_width(current_room->image)/2),(SCREEN_HEIGHT/2)-(al_get_bitmap_height(current_room->image)/2),0);
                 }
             }
+
+            pthread_mutex_unlock(&current_room_lock);
             
             al_flip_display();
 
@@ -116,7 +220,14 @@ int main(int argc, char** argv)
 
     }
 
+    printf("exiting\n");
+
     current_room = NULL;
+
+    pthread_join(console_thread,NULL);
+    pthread_mutex_destroy(&running_lock);
+    pthread_mutex_destroy(&rooms_lock);
+    pthread_mutex_destroy(&current_room_lock);
 
     destroy_rooms();
 
