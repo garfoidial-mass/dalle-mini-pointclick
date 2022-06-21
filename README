@@ -1,0 +1,9 @@
+A very simple point and click thing, made to learn allegro. Includes a "player program" and an editor to create a game.
+
+There is no support for items or puzzles yet, only rooms and transitions between them. Animation is also unsupported right now.
+
+compilation:
+You need make, gcc, allegro 5, and pthreads installed and on path, then run "make".
+
+running:
+You will need the allegro, allegro_audio, allegro_acodec, allegro_image, and allegro_primitives shared libraries (dll or .so, depending on os) on path or in directory

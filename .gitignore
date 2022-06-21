@@ -1,5 +1,7 @@
 *.dll
 *.exe
+*.7z
+*.zip
 .vscode
 allegro
 playable
