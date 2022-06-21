@@ -126,7 +126,6 @@ int main(int argc, char** argv)
         case ALLEGRO_EVENT_MOUSE_AXES:
             x = event.mouse.x;
             y = event.mouse.y;
-            //printf("x:%i,y:%i",x,y);
             break;
         
         case ALLEGRO_EVENT_DISPLAY_CLOSE:
@@ -141,7 +140,39 @@ int main(int argc, char** argv)
         switch (editor_mode)
         {
         case MODE_VIEWING:
-            break;
+            switch (event.type)
+            {
+                case ALLEGRO_EVENT_MOUSE_AXES:
+                if(current_room != NULL)
+                {
+                    TransitionBox* box = check_transition(x,y,current_room);
+                    if(box != NULL)
+                    {
+                        al_set_mouse_cursor(disp,box->cursor);
+                    }
+                    else
+                    {
+                        al_set_system_mouse_cursor(disp,ALLEGRO_SYSTEM_MOUSE_CURSOR_DEFAULT);
+                    }
+                    }
+                break;
+
+                case ALLEGRO_EVENT_MOUSE_BUTTON_DOWN:
+                if (event.mouse.button == 1)
+                {
+                    if(current_room != NULL)
+                    {
+                        TransitionBox* box = check_transition(x,y,current_room);
+                        if (box != NULL)
+                        {
+                            transition(current_room,box->room);
+                            al_set_system_mouse_cursor(disp,ALLEGRO_SYSTEM_MOUSE_CURSOR_DEFAULT);
+                        }
+                    }
+                }
+                break;
+            }
+        break;
         case MODE_ED_TRANSITION:
             switch (event.type)
             {

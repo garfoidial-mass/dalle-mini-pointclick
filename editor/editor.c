@@ -36,10 +36,12 @@ void create_command_hash()
 {
     int numcmd = sizeof(cmdarr)/sizeof(Command);
 
-
+    Command* cmdcheck = NULL;
     for(int i = 0; i < numcmd; i++)
-    {
-        HASH_ADD_STR(commands,command,&(cmdarr[i]));
+    {   
+        HASH_FIND_STR(commands,cmdarr[i].command,cmdcheck);
+        if(cmdcheck == NULL)
+            HASH_ADD_STR(commands,command,&(cmdarr[i]));
     }
 }
 
@@ -81,32 +83,50 @@ void parse_input(char* input)
 
 cmdfunc(save)
 {
-    if(argcount < 2)
-    {
-        return false;
-    }
+    if(argcount < 2) return false;
 
     ALLEGRO_CONFIG* conf = al_create_config();
+
+    if(conf == NULL) return false;
+
     char num[512];
+
+    pthread_mutex_lock(&rooms_lock);
     for(Room* room = rooms; room != NULL; room = room->hh.next)
     {
         al_add_config_section(conf,room->name);
-        al_set_config_value(conf,room->name,"isroom","true");
         al_set_config_value(conf,room->name,"imagepath",room->editor_room->imagepath);
         al_set_config_value(conf,room->name,"audiopath",room->editor_room->audiopath);
         for(TransitionBox* transition = room->transitions; transition != NULL; transition = transition->hh.next)
         {
             al_add_config_section(conf,transition->name);
-            al_set_config_value(conf,transition->name,"isroom","false");
             al_set_config_value(conf,transition->name,"x1",itoa(transition->x1,num,10));
             al_set_config_value(conf,transition->name,"y1",itoa(transition->y1,num,10));
             al_set_config_value(conf,transition->name,"x2",itoa(transition->x2,num,10));
             al_set_config_value(conf,transition->name,"y2",itoa(transition->y2,num,10));
             al_set_config_value(conf,transition->name,"room",transition->room->name);
-            //add cursor here
+
+            if(transition->cursor == upcursor)
+            {
+                al_set_config_value(conf,transition->name,"cursor","u");
+            }
+            else if(transition->cursor == downcursor)
+            {
+                al_set_config_value(conf,transition->name,"cursor","d");
+            }
+            else if(transition->cursor == leftcursor)
+            {
+                al_set_config_value(conf,transition->name,"cursor","l");
+            }
+            else if(transition->cursor == rightcursor)
+            {
+                al_set_config_value(conf,transition->name,"cursor","r");
+            }
+
         }
-        
     }
+    pthread_mutex_unlock(&rooms_lock);
+    if(!al_save_config_file(args[1],conf)) return false;
     al_destroy_config(conf);
     return true;
 }
@@ -116,7 +136,10 @@ cmdfunc(load)
     {
         return false;
     }
-    return true;
+    pthread_mutex_lock(&rooms_lock);
+    bool loaded = load_game(args[1]);
+    pthread_mutex_unlock(&rooms_lock);
+    return loaded;
 }
 
 cmdfunc(listrooms)
@@ -124,7 +147,7 @@ cmdfunc(listrooms)
     pthread_mutex_lock(&rooms_lock);
     for(Room* room = rooms; room != NULL; room = room->hh.next)
     {
-        printf(room->name);
+        printf("%s\n",room->name);
     }
     pthread_mutex_unlock(&rooms_lock);
     return true;
@@ -170,6 +193,10 @@ cmdfunc(newroom)
     pthread_mutex_lock(&rooms_lock);
     Room* room = create_room(roomname,imagepath,audiopath);
     room->editor_room = malloc(sizeof(Ed_room));
+    room->editor_room->imagepath = malloc(strlen(imagepath)+1);
+    strcpy(room->editor_room->imagepath,imagepath);
+    room->editor_room->audiopath = malloc(strlen(audiopath)+1);
+    strcpy(room->editor_room->audiopath,audiopath);
     pthread_mutex_unlock(&rooms_lock);
     return true;
 }
@@ -250,11 +277,19 @@ cmdfunc(setname)
         return false;
     }
     pthread_mutex_lock(&rooms_lock);
-    HASH_DEL(rooms,current_room);
-    current_room->name = args[1];
-    HASH_ADD_STR(rooms,name,current_room);
+    Room* room = NULL;
+    HASH_FIND_STR(rooms,args[1],room);
+    if(room == NULL)
+    {
+        HASH_DEL(rooms,current_room);
+        current_room->name = malloc(strlen(args[1])+1);
+        strcpy(current_room->name,args[1]);
+        HASH_ADD_STR(rooms,name,current_room);
+        pthread_mutex_unlock(&rooms_lock);
+        return true;
+    }
     pthread_mutex_unlock(&rooms_lock);
-    return true;
+    return false;
 }
 cmdfunc(setimage)
 {
@@ -268,7 +303,8 @@ cmdfunc(setimage)
     {
         al_destroy_bitmap(current_room->image);
         current_room->image = tmpimg;
-        current_room->editor_room->imagepath = args[1];
+        current_room->editor_room->imagepath = malloc(strlen(args[1])+1);
+        strcpy(current_room->editor_room->imagepath,args[1]);
         pthread_mutex_unlock(&current_room_lock);
         return true;
     }
@@ -288,7 +324,8 @@ cmdfunc(setaudio)
         pthread_mutex_lock(&current_room_lock);
         al_destroy_audio_stream(current_room->music);
         current_room->music = audio;
-        current_room->editor_room->audiopath = args[1];
+        current_room->editor_room->audiopath = malloc(strlen(args[1])+1);
+        strcpy(current_room->editor_room->audiopath,args[1]);
         al_set_audio_stream_playmode(current_room->music, ALLEGRO_PLAYMODE_LOOP);
         al_attach_audio_stream_to_mixer(current_room->music,al_get_default_mixer());
         pthread_mutex_unlock(&current_room_lock);
