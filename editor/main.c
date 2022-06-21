@@ -1,6 +1,7 @@
 #include <allegro5/allegro_primitives.h>
 #include "editor.h"
 
+
 pthread_t console_thread;
 
 void* console(void* args)
@@ -12,16 +13,15 @@ void* console(void* args)
     while (1)
     {
         pthread_mutex_lock(&running_lock);
-        if(shouldrun)
+        if(!shouldrun)
         {
             pthread_mutex_unlock(&running_lock);
             break;
         }
         pthread_mutex_unlock(&running_lock);
-        //pthread_mutex_unlock(&running_lock);
         fgets(line,100,stdin);
         line[strcspn(line,"\n")] = '\0';
-        parse_input(line);   
+        parse_input(line);
     }
     return NULL;
 }
@@ -81,27 +81,7 @@ int main(int argc, char** argv)
     must_init(disp,"display");
     //end create event sources
 
-    //begin init cursors
-    ALLEGRO_BITMAP* cursorbmps[4];
-    cursorbmps[0] = al_load_bitmap("images/cursors/forward.png");
-    for(int i = 1; i < 4; i++)
-    {
-        cursorbmps[i] = al_create_bitmap(32,32);
-        al_set_target_bitmap(cursorbmps[i]);
-        al_draw_rotated_bitmap(cursorbmps[0],16,16,16,16,1.5708*i,0);
-    }
-    al_set_target_backbuffer(disp);
-
-    ALLEGRO_MOUSE_CURSOR* leftcursor = al_create_mouse_cursor(cursorbmps[3],0,16);
-    must_init(leftcursor,"leftcursor");
-    ALLEGRO_MOUSE_CURSOR* rightcursor = al_create_mouse_cursor(cursorbmps[1],32,16);
-    must_init(rightcursor,"rightcursor");
-    ALLEGRO_MOUSE_CURSOR* upcursor = al_create_mouse_cursor(cursorbmps[0],16,0);
-    must_init(upcursor,"upcursor");
-    ALLEGRO_MOUSE_CURSOR* downcursor = al_create_mouse_cursor(cursorbmps[2],16,32);
-    must_init(downcursor,"downcursor");
-    
-    //end init cursors
+    init_cursors(disp);
 
     //begin register event sources
 
@@ -143,6 +123,12 @@ int main(int argc, char** argv)
             redraw = true;
             break;
         
+        case ALLEGRO_EVENT_MOUSE_AXES:
+            x = event.mouse.x;
+            y = event.mouse.y;
+            //printf("x:%i,y:%i",x,y);
+            break;
+        
         case ALLEGRO_EVENT_DISPLAY_CLOSE:
             pthread_mutex_lock(&running_lock);
             shouldrun = false;
@@ -150,50 +136,57 @@ int main(int argc, char** argv)
             break;
         }
 
+        pthread_mutex_lock(&current_transition_lock);
+
         switch (editor_mode)
         {
         case MODE_VIEWING:
             break;
         case MODE_ED_TRANSITION:
-            pthread_mutex_lock(&current_transition_lock);
             switch (event.type)
             {
             case ALLEGRO_EVENT_MOUSE_BUTTON_DOWN:
-                if (event.mouse.button & 0b01)
+                if (event.mouse.button == 1)
                 {
                     switch(points_set)
                     {
                         case 0:
-                            current_transition->x1 = event.mouse.x;
-                            current_transition->y1 = event.mouse.y;
+                            current_transition->x1 = x;
+                            current_transition->y1 = y;
                             points_set++;
+                            printf("point added\n");
                         break;
                         case 1:
-                            current_transition->x2 = event.mouse.x;
-                            current_transition->y2 = event.mouse.y;
+                            current_transition->x2 = x;
+                            current_transition->y2 = y;
                             points_set++;
                         break;
                         case 2:
                             editor_mode = MODE_VIEWING;
+                            points_set = 0;
                         break;
                     }
                 }
-                else if (event.mouse.button & 0b10)
+                else if (event.mouse.button == 2)
                 {
                     switch(points_set)
                     {
+                        case 2:
                         case 1:
                             points_set--;
                         break;
-                        case 2:
-                            points_set--;
+                        case 0:
+                            destroy_transition(current_room,current_transition);
+                            editor_mode = MODE_VIEWING;
                         break;
                     }
                 }
             break;
             }
-            pthread_mutex_unlock(&current_transition_lock);
+            break;
         }
+
+        pthread_mutex_unlock(&current_transition_lock);
 
         if(redraw && al_is_event_queue_empty(queue))
         {
@@ -207,6 +200,18 @@ int main(int argc, char** argv)
                 if(current_room->image != NULL)
                 {
                     al_draw_bitmap(current_room->image,(SCREEN_WIDTH/2)-(al_get_bitmap_width(current_room->image)/2),(SCREEN_HEIGHT/2)-(al_get_bitmap_height(current_room->image)/2),0);
+                }
+            }
+
+            if(editor_mode == MODE_ED_TRANSITION)
+            {
+                switch (points_set)
+                {
+                case 1:
+                    al_draw_rectangle(current_transition->x1,current_transition->y1,x,y,TRANSITIONBOX_COLOR,3.0f);
+                    break;
+                case 2:
+                    al_draw_rectangle(current_transition->x1,current_transition->y1,current_transition->x2,current_transition->y2,TRANSITIONBOX_COLOR,3.0f);
                 }
             }
 

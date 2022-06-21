@@ -18,6 +18,12 @@ extern int y;
 
 extern bool shouldrun;
 
+extern ALLEGRO_BITMAP* cursorbmps[4];
+extern ALLEGRO_MOUSE_CURSOR* leftcursor = NULL;
+extern ALLEGRO_MOUSE_CURSOR* rightcursor = NULL;
+extern ALLEGRO_MOUSE_CURSOR* upcursor = NULL;
+extern ALLEGRO_MOUSE_CURSOR* downcursor = NULL;
+
 typedef struct room_t Room;
 typedef struct transbox_t TransitionBox;
 
@@ -48,6 +54,8 @@ struct room_t
 extern Room* current_room;
 
 extern Room* rooms;
+
+void init_cursors(ALLEGRO_DISPLAY* disp);
 
 void must_init(bool test, const char *description);
 

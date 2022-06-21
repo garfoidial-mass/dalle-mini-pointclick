@@ -43,28 +43,8 @@ int main(int argc, char** argv)
     must_init(disp,"display");
     //end create event sources
 
-    //begin init cursors
-    ALLEGRO_BITMAP* cursorbmps[4];
-    cursorbmps[0] = al_load_bitmap("images/cursors/forward.png");
-    for(int i = 1; i < 4; i++)
-    {
-        cursorbmps[i] = al_create_bitmap(32,32);
-        al_set_target_bitmap(cursorbmps[i]);
-        al_draw_rotated_bitmap(cursorbmps[0],16,16,16,16,1.5708*i,0);
-    }
-    al_set_target_backbuffer(disp);
-
-    ALLEGRO_MOUSE_CURSOR* leftcursor = al_create_mouse_cursor(cursorbmps[3],0,16);
-    must_init(leftcursor,"leftcursor");
-    ALLEGRO_MOUSE_CURSOR* rightcursor = al_create_mouse_cursor(cursorbmps[1],32,16);
-    must_init(rightcursor,"rightcursor");
-    ALLEGRO_MOUSE_CURSOR* upcursor = al_create_mouse_cursor(cursorbmps[0],16,0);
-    must_init(upcursor,"upcursor");
-    ALLEGRO_MOUSE_CURSOR* downcursor = al_create_mouse_cursor(cursorbmps[2],16,32);
-    must_init(downcursor,"downcursor");
+    init_cursors(disp);
     
-    //end init cursors
-
 
     //start room and transition box definitions
 

@@ -21,6 +21,8 @@ extern TransitionBox* current_transition;
 typedef bool(*CmdFuncPtr)(int argcount,char** args);
 #define cmdfunc(name) bool name(int argcount,char** args)
 
+#define TRANSITIONBOX_COLOR al_map_rgb(255,0,255)
+
 enum EDITOR_MODE {MODE_VIEWING, MODE_ED_TRANSITION};
 
 extern enum EDITOR_MODE editor_mode;
@@ -39,6 +41,9 @@ void create_command_hash();
 
 void parse_input(char* input);
 
+
+cmdfunc(save);
+cmdfunc(load);
 cmdfunc(listrooms);
 cmdfunc(listtransitions);
 cmdfunc(listcmds);

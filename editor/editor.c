@@ -8,11 +8,13 @@ pthread_mutex_t current_transition_lock;
 TransitionBox* current_transition;
 
 Command cmdarr[] = {
+    {"save","save <filename>","saves rooms to file specified by filename",&save},
+    {"load","load <filename>","loads rooms from file specified by filename",&load},
     {"listrooms","listrooms","lists existing rooms",&listrooms},
     {"listtransitions","listtransitions","lists transitions in current room",&listtransitions},
     {"listcmds","listcmds","list console commands",&listcmds},
     {"newroom","newroom <room name> <image path> <audio path>","creates a room with the name <room name>, image at <image path>, and audio file at <audio path>",&newroom},
-    {"newtransition","newtransition <transition name> <room name>","creates a transition with the name <transition name> which transitions to the room with the name <room name> in the currently edited room",&newtransition},
+    {"newtransition","newtransition <transition name> <room name> <cursor name>","creates a transition with the name <transition name> which transitions to the room with the name <room name> in the currently edited room. the cursor can be either 'up', 'down','left',or 'right'.",&newtransition},
     {"setroom","setroom <room name>","starts editing the room with name <room name>",&setroom},
     {"getroom","getroom <room name>","displays the name of the currently edited room",&getroom},
     {"setname","setname <room name>","changes the currently edited room's name to <room name>",&setname},
@@ -24,7 +26,7 @@ Command cmdarr[] = {
     {"quit","quit","quits the program",&quit}
 };
 
-uint8_t points_set; // for checking which points have been set in a transition (should never be greater than 2)
+uint8_t points_set = 0; // for checking which points have been set in a transition (should never be greater than 2)
 
 Command* commands = NULL;
 
@@ -56,10 +58,15 @@ void parse_input(char* input)
     }
     argcount-=1;
     Command* cmd = NULL;
+    if(args[0] == NULL){ 
+        free(args);
+        return;
+    }
     HASH_FIND_STR(commands,args[0],cmd);
     if(cmd == NULL)
     {
         printf("could not find command \"%s\"\n",args[0]);
+        free(args);
         return;
     }
 
@@ -70,6 +77,46 @@ void parse_input(char* input)
 
     free(args);
     return;
+}
+
+cmdfunc(save)
+{
+    if(argcount < 2)
+    {
+        return false;
+    }
+
+    ALLEGRO_CONFIG* conf = al_create_config();
+    char num[512];
+    for(Room* room = rooms; room != NULL; room = room->hh.next)
+    {
+        al_add_config_section(conf,room->name);
+        al_set_config_value(conf,room->name,"isroom","true");
+        al_set_config_value(conf,room->name,"imagepath",room->editor_room->imagepath);
+        al_set_config_value(conf,room->name,"audiopath",room->editor_room->audiopath);
+        for(TransitionBox* transition = room->transitions; transition != NULL; transition = transition->hh.next)
+        {
+            al_add_config_section(conf,transition->name);
+            al_set_config_value(conf,transition->name,"isroom","false");
+            al_set_config_value(conf,transition->name,"x1",itoa(transition->x1,num,10));
+            al_set_config_value(conf,transition->name,"y1",itoa(transition->y1,num,10));
+            al_set_config_value(conf,transition->name,"x2",itoa(transition->x2,num,10));
+            al_set_config_value(conf,transition->name,"y2",itoa(transition->y2,num,10));
+            al_set_config_value(conf,transition->name,"room",transition->room->name);
+            //add cursor here
+        }
+        
+    }
+    al_destroy_config(conf);
+    return true;
+}
+cmdfunc(load)
+{
+    if(argcount < 2)
+    {
+        return false;
+    }
+    return true;
 }
 
 cmdfunc(listrooms)
@@ -88,7 +135,7 @@ cmdfunc(listtransitions)
     pthread_mutex_lock(&current_room_lock);
     for(TransitionBox* transition = current_room->transitions; transition != NULL; transition = transition->hh.next)
     {
-        printf(transition->name);
+        printf("%s\n",transition->name);
     }
     pthread_mutex_unlock(&current_room_lock);
     return true;
@@ -128,16 +175,35 @@ cmdfunc(newroom)
 }
 cmdfunc(newtransition)
 {
-    if(argcount < 3)
+    if(argcount < 4)
     {
         return false;
     }
     Room* room;
     pthread_mutex_lock(&rooms_lock);
-    HASH_FIND_STR(rooms,args[2],room);
-    if(room != NULL)
+
+    ALLEGRO_MOUSE_CURSOR* cursor;
+
+    switch(args[3][0])
     {
-        TransitionBox* box = create_transition(args[1],0,0,0,0,NULL,room);
+        case 'u':
+            cursor = upcursor;
+        break;
+        case 'd':
+            cursor = downcursor;
+        break;
+        case 'l':
+            cursor = leftcursor;
+        break;
+        case 'r':
+            cursor = rightcursor;
+        break;
+    }
+
+    HASH_FIND_STR(rooms,args[2],room);
+    if(room != NULL && room != current_room)
+    {
+        TransitionBox* box = create_transition(args[1],0,0,0,0,cursor,room);
         add_transition(box,current_room);
         current_transition = box;
         editor_mode = MODE_ED_TRANSITION;

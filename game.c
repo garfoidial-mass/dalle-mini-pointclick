@@ -9,6 +9,33 @@ Room* rooms = NULL;
 int x = 0;
 int y = 0;
 
+ALLEGRO_BITMAP* cursorbmps[4];
+ALLEGRO_MOUSE_CURSOR* leftcursor = NULL;
+ALLEGRO_MOUSE_CURSOR* rightcursor = NULL;
+ALLEGRO_MOUSE_CURSOR* upcursor = NULL;
+ALLEGRO_MOUSE_CURSOR* downcursor = NULL;
+
+void init_cursors(ALLEGRO_DISPLAY* disp)
+{
+    cursorbmps[0] = al_load_bitmap("images/cursors/forward.png");
+    for(int i = 1; i < 4; i++)
+    {
+        cursorbmps[i] = al_create_bitmap(32,32);
+        al_set_target_bitmap(cursorbmps[i]);
+        al_draw_rotated_bitmap(cursorbmps[0],16,16,16,16,1.5708*i,0);
+    }
+    al_set_target_backbuffer(disp);
+
+    leftcursor = al_create_mouse_cursor(cursorbmps[3],0,16);
+    must_init(leftcursor,"leftcursor");
+    rightcursor = al_create_mouse_cursor(cursorbmps[1],32,16);
+    must_init(rightcursor,"rightcursor");
+    upcursor = al_create_mouse_cursor(cursorbmps[0],16,0);
+    must_init(upcursor,"upcursor");
+    downcursor = al_create_mouse_cursor(cursorbmps[2],16,32);
+    must_init(downcursor,"downcursor");
+}
+
 void must_init(bool test, const char *description)
 {
     if (test) return;
